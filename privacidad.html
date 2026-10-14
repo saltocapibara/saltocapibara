@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Política de privacidad · Salto Capibara</title>
+<meta name="description" content="Política de privacidad y contacto de Salto Capibara.">
+<meta name="theme-color" content="#26472f">
+<meta name="color-scheme" content="light">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<style>
+@font-face{font-family:"Bagel Fat One";src:url("fonts/BagelFatOne-latin.woff") format("woff");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Bricolage Grotesque";src:url("fonts/BricolageGrotesque-latin.woff") format("woff");font-weight:200 800;font-style:normal;font-display:swap}
+/* Layout: una sola columna de lectura dentro de un panel tipo pegatina, sobre el verde del juego */
+:root{
+  --marsh:#26472f;
+  --ink:#16241b;
+  --ink-soft:#40574a;
+  --sticker:#f3fae4;
+  --paper:#ffffff;
+  --mandarina:#ff8a1f;
+  --mandarina-ink:#9a4300;
+  --warn:#b3261e;
+  --font-display:"Bagel Fat One","Arial Rounded MT Bold","Trebuchet MS",system-ui,sans-serif;
+  --font-body:"Bricolage Grotesque",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{
+  margin:0;background:var(--marsh);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:max(24px,env(safe-area-inset-top,0px)) max(32px,env(safe-area-inset-bottom,0px));
+}
+[hidden]{display:none!important}
+.page{
+  max-width:680px;margin:0 auto;background:var(--sticker);border:3px solid var(--ink);border-radius:24px;
+  box-shadow:0 8px 0 var(--ink);padding:24px clamp(18px,4vw,36px) 28px;display:grid;gap:18px;
+}
+.back{
+  justify-self:start;display:inline-flex;align-items:center;gap:6px;
+  font-weight:800;color:var(--ink);text-decoration:none;background:var(--paper);
+  border:2.5px solid var(--ink);border-radius:999px;box-shadow:0 3px 0 var(--ink);padding:6px 14px;
+}
+.back:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.back:focus-visible,a:focus-visible{outline:3px solid var(--mandarina);outline-offset:3px}
+h1{margin:0;font-family:var(--font-display);font-weight:400;font-size:clamp(34px,8vw,48px);line-height:.95;text-wrap:balance}
+h1 span{display:block;color:var(--mandarina);text-shadow:0 3px 0 var(--ink),2px 0 0 var(--ink),-2px 0 0 var(--ink),0 -2px 0 var(--ink)}
+h2{margin:8px 0 0;font-size:20px;line-height:1.25;font-weight:800;text-wrap:balance}
+p,ul{margin:0;max-width:62ch}
+ul{padding-left:22px;display:grid;gap:6px}
+.date{color:var(--ink-soft);font-size:14px;font-weight:600}
+.lead{font-size:18px;font-weight:600}
+a{color:var(--mandarina-ink);font-weight:700;text-underline-offset:3px}
+.card{background:var(--paper);border:2px solid var(--ink);border-radius:16px;padding:14px 16px;display:grid;gap:6px}
+.warn{background:var(--warn);color:#fff;border-radius:12px;padding:10px 14px;font-weight:700}
+</style>
+</head>
+<body>
+<main class="page">
+  <a class="back" href="./">← Volver al juego</a>
+  <h1>Política de privacidad <span>Salto Capibara</span></h1>
+  <p class="date">Última actualización: 14 de octubre de 2026</p>
+
+  <!-- ✏️ EDITA ESTO ANTES DE PUBLICAR: pon tu nombre y tu correo en las dos líneas marcadas más abajo (busca «EDITA»). -->
+  <p id="warn" class="warn" hidden>Falta poner el nombre y el correo de contacto en esta página.</p>
+
+  <p class="lead">Salto Capibara no recoge, no guarda en ningún servidor y no comparte datos personales. No tiene registro, anuncios, analíticas ni compras.</p>
+
+  <h2>Quién es el responsable</h2>
+  <div class="card">
+    <!-- EDITA: tu nombre o el nombre con el que publicas -->
+    <p>Desarrollador: <strong id="devName">Tu nombre</strong></p>
+    <!-- EDITA: el correo de contacto (cámbialo en los dos sitios de la línea) -->
+    <p>Correo de contacto: <a id="devMail" href="mailto:tucorreo@ejemplo.com">tucorreo@ejemplo.com</a></p>
+  </div>
+
+  <h2>Qué se guarda en tu dispositivo</h2>
+  <p>Para que no pierdas tu progreso, el juego guarda en tu propio dispositivo:</p>
+  <ul>
+    <li>tu récord de carriles cruzados,</li>
+    <li>las mandarinas que tienes,</li>
+    <li>los personajes que has desbloqueado y el que estás usando,</li>
+    <li>si tienes el sonido activado o no.</li>
+  </ul>
+  <p>Estos datos se quedan en el almacenamiento local del navegador o de la app. Nunca se envían a nosotros ni a nadie. Se borran si desinstalas la app o si borras los datos del sitio en tu navegador.</p>
+
+  <h2>Conexión a internet</h2>
+  <p>La versión web y las apps de Windows y Android descargan el juego desde GitHub Pages, el servicio de GitHub que aloja esta web. Como en cualquier página web, GitHub recibe datos técnicos como tu dirección IP para poder enviarte los archivos, y la registra por motivos de seguridad. Nosotros no recibimos ni usamos esos datos. Puedes consultar cómo los trata GitHub en su <a href="https://docs.github.com/es/site-policy/privacy-policies/github-general-privacy-statement">declaración de privacidad</a>.</p>
+  <p>La app de iPhone y iPad lleva el juego dentro y no necesita conexión.</p>
+
+  <h2>Seguridad, conservación y borrado</h2>
+  <p>Como no recogemos datos personales, no conservamos ni tratamos ninguno, y no hay nada que pedirnos que borremos. Tus datos de partida están solo en tu dispositivo y los controlas tú.</p>
+
+  <h2>Menores</h2>
+  <p>El juego es apto para todas las edades y no recoge datos de nadie, tampoco de menores de 13 años.</p>
+
+  <h2>Cambios en esta política</h2>
+  <p>Si el juego cambia en algo que afecte a tu privacidad, actualizaremos esta página y la fecha de arriba antes de publicar el cambio.</p>
+
+  <h2 id="contacto">Contacto y ayuda</h2>
+  <p>Para cualquier duda sobre el juego o sobre esta política, escribe al correo de contacto que aparece arriba.</p>
+  <ul>
+    <li><strong>Cómo se juega:</strong> toca la pantalla para avanzar y desliza para ir a los lados o hacia atrás. En el ordenador, usa las flechas o W A S D. La tecla M quita el sonido.</li>
+    <li><strong>Cómo empezar de cero:</strong> borra los datos del sitio en tu navegador o desinstala y vuelve a instalar la app.</li>
+  </ul>
+
+  <a class="back" href="./">← Volver al juego</a>
+</main>
+<script>
+(function(){
+  // Muestra un aviso si todavía no se han cambiado el nombre y el correo de ejemplo.
+  var name = document.getElementById('devName').textContent.trim();
+  var mail = document.getElementById('devMail').textContent.trim();
+  if (name === 'Tu nombre' || mail === 'tucorreo@ejemplo.com') document.getElementById('warn').hidden = false;
+})();
+</script>
+</body>
+</html>
