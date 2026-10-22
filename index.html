@@ -288,6 +288,33 @@ body:has(#start:not([hidden])) .hud > div:first-child{visibility:hidden}
   .m-desc{font-size:13px}
 }
 @media (prefers-reduced-motion: reduce){.panel,.hint,.toast,.toast.out,.btn.nope{animation:none}}
+
+/* Música: reproductor de Spotify con los discos de DELLAFUENTE */
+.icon-btn.is-on{background:var(--mandarina)}
+.music-sheet.is-closed{visibility:hidden;pointer-events:none}
+.music-sheet.is-closed .panel{animation:none}
+.panel.music{width:min(430px,100%);gap:12px}
+.music-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.music-artist{font-weight:800;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--mandarina-ink)}
+.spotify-box{border:2.5px solid var(--ink);border-radius:16px;overflow:hidden;background:var(--ink);min-height:152px;display:grid}
+.spotify-box iframe{display:block;border:0;width:100%}
+.music-wait{margin:0;padding:18px;color:var(--sticker);font-weight:600;font-size:14px;line-height:1.4;align-self:center}
+.auto-next{display:flex;gap:10px;align-items:center;font-weight:700;font-size:14px;line-height:1.3;cursor:pointer}
+.auto-next input{width:20px;height:20px;flex:none;margin:0;accent-color:var(--mandarina-deep)}
+.album-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.album{
+  appearance:none;-webkit-appearance:none;font:inherit;color:var(--ink);text-align:left;cursor:pointer;min-width:0;
+  background:var(--paper);border:2.5px solid var(--ink);border-radius:12px;box-shadow:0 3px 0 var(--ink);
+  padding:7px 10px 8px;display:grid;gap:2px;
+}
+.album b{font-weight:800;font-size:14px;line-height:1.2;overflow-wrap:anywhere}
+.album small{font-size:12px;font-weight:600;line-height:1.25;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.album[aria-selected="true"]{background:var(--mandarina)}
+.album[aria-selected="true"] small{color:var(--ink)}
+.album:not([aria-selected="true"]):hover{background:var(--paper-warm)}
+.album:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.album:focus-visible{outline:3px solid var(--mandarina-deep);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){.album:active{transform:none}}
 </style>
 </head>
 <body>
@@ -310,6 +337,9 @@ body:has(#start:not([hidden])) .hud > div:first-child{visibility:hidden}
       <svg viewBox="0 0 26 26" aria-hidden="true"><use href="#i-mand"/></svg>
       <span id="coins">0</span>
     </div>
+    <button id="musicBtn" class="icon-btn" type="button" aria-label="Música" aria-expanded="false" aria-controls="music">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17.5V5.5l11-2v12"/><circle cx="6.3" cy="17.6" r="2.7" fill="currentColor"/><circle cx="17.3" cy="15.6" r="2.7" fill="currentColor"/></svg>
+    </button>
     <button id="mute" class="icon-btn" type="button" aria-label="Silenciar sonido">
       <svg id="icoOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>
       <svg id="icoOff" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>
@@ -398,6 +428,21 @@ body:has(#start:not([hidden])) .hud > div:first-child{visibility:hidden}
       <li>Pulsa «Añadir». El juego aparecerá como una app más y funcionará sin conexión.</li>
     </ol>
     <button id="iosClose" class="btn btn-alt" type="button">Entendido</button>
+  </div>
+</div>
+
+<div id="music" class="overlay modal music-sheet is-closed" aria-hidden="true">
+  <div class="panel music" role="dialog" aria-modal="true" aria-labelledby="musicTitle">
+    <div class="music-head">
+      <h2 id="musicTitle" class="shop-title">Música</h2>
+      <span class="music-artist">DELLAFUENTE</span>
+    </div>
+    <div class="spotify-box"><div id="spotifyEmbed"></div><p id="musicWait" class="music-wait">Cargando el reproductor de Spotify…</p></div>
+    <label class="auto-next" for="autoNext"><input id="autoNext" type="checkbox" checked>Al acabar un disco, seguir con el siguiente</label>
+    <div class="sec-head"><h3 class="sec-title">Discos</h3><span id="albumCount" class="sec-note"></span></div>
+    <div id="albumList" class="album-list" role="listbox" aria-labelledby="musicTitle"></div>
+    <p class="touch">La música sigue sonando cuando vuelves al juego, y el juego se queda en pausa mientras esta ventana está abierta. Para oír las canciones enteras, inicia sesión en Spotify en este navegador; si no, solo suenan 30 segundos de cada una.</p>
+    <button id="musicClose" class="btn btn-alt" type="button">Volver al juego</button>
   </div>
 </div>
 
@@ -3166,6 +3211,106 @@ function updateMute(){
 }
 function toggleMute(){ muted = !muted; save(); updateMute(); if (!muted){ ensureAudio(); sfx('coin'); } }
 
+/* ---------- música: discos de DELLAFUENTE en Spotify ---------- */
+const ALBUMS = [
+  {id:'3fQbRic1J465dN6YtaP7Eq', name:'BRIGADO,', year:2026, kind:'Álbum'},
+  {id:'6zSKkBQfQs3B9YncN3SGyI', name:'Torii Yama', year:2024, kind:'Álbum'},
+  {id:'651OtlRea91lZXw5SVBkHE', name:'INCURSION', year:2023, kind:'Con Salomon Sessions'},
+  {id:'3cPRpK8yUQV5T6QTt7XGfp', name:'Lágrimas pa otro día', year:2023, kind:'Álbum'},
+  {id:'5cqt46BOfoSQPRxnnDbToo', name:'Tanteo', year:2022, kind:'EP'},
+  {id:'10l2vFdB0rrIrvfNfe2MIv', name:'Milagro', year:2021, kind:'Álbum'},
+  {id:'7ezEoCW67BjZ7bpWkqJ9Io', name:'Descanso en Poder', year:2020, kind:'Álbum'},
+  {id:'5GyDhDfK24MhsOH1bX8gdW', name:'Ep.01-Causa', year:2020, kind:'Con Taifa Yallah'},
+  {id:'2UsytqqyHmKXYKmOmvA60E', name:'Recopilatorio 2 (2013-2018)', year:2018, kind:'Recopilatorio'},
+  {id:'3FlAEGgSnWzMI0qrIpLOnW', name:'Recopilatorio 1 (2013-2018)', year:2018, kind:'Recopilatorio'},
+  {id:'03a68tDUXs4dX7nVcVfJAn', name:'Ansia Viva', year:2016, kind:'Álbum'},
+  {id:'4q1iG9Jub9KRC25vZ0f6y4', name:'Azulejos de Corales', year:2015, kind:'Álbum'}
+];
+const MUSIC_KEY = 'salto-capibara-musica';
+const musicEl = $('music');
+let musicOpen = false, albumIdx = 0, autoNext = true, spCtl = null, spAsked = false, endTimer = null, albumsBuilt = false;
+let spNow = {playing: false, pos: 0, dur: 0};
+try {
+  const m = JSON.parse(localStorage.getItem(MUSIC_KEY) || '{}');
+  if (Number.isInteger(m.album) && m.album >= 0 && m.album < ALBUMS.length) albumIdx = m.album;
+  if (m.autoNext === false) autoNext = false;
+} catch(e){}
+function saveMusic(){ try { localStorage.setItem(MUSIC_KEY, JSON.stringify({album: albumIdx, autoNext})); } catch(e){} }
+const albumUri = i => 'spotify:album:' + ALBUMS[i].id;
+function loadSpotify(){
+  if (spAsked) return;
+  spAsked = true;
+  $('musicWait').hidden = false;
+  $('musicWait').textContent = 'Cargando el reproductor de Spotify…';
+  window.onSpotifyIframeApiReady = api => {
+    const tall = window.innerHeight >= 820;
+    api.createController($('spotifyEmbed'), {uri: albumUri(albumIdx), width: '100%', height: tall ? 352 : 152}, ctl => {
+      spCtl = ctl;
+      ctl.addListener('ready', () => { $('musicWait').hidden = true; });
+      ctl.addListener('playback_update', onPlayback);
+      $('musicWait').hidden = true;
+    });
+  };
+  const s = document.createElement('script');
+  s.src = 'https://open.spotify.com/embed/iframe-api/v1';
+  s.async = true;
+  s.onerror = () => {
+    spAsked = false; s.remove();
+    $('musicWait').textContent = 'No se ha podido cargar Spotify. Comprueba la conexión a internet y vuelve a abrir la música.';
+  };
+  document.head.appendChild(s);
+}
+function onPlayback(e){
+  const d = (e && e.data) || {};
+  const playing = !d.isPaused;
+  if (playing && endTimer){ clearTimeout(endTimer); endTimer = null; }
+  // Al terminar la última canción el reproductor se para: entonces pasa al siguiente disco
+  if (!playing && spNow.playing && autoNext && spNow.dur > 0 && (spNow.dur - spNow.pos < 2500 || (d.position || 0) === 0)){
+    clearTimeout(endTimer);
+    endTimer = setTimeout(() => { endTimer = null; if (!spNow.playing) playAlbum((albumIdx + 1) % ALBUMS.length); }, 2500);
+  }
+  spNow = {playing, pos: d.position || 0, dur: d.duration || 0};
+  $('musicBtn').classList.toggle('is-on', playing);
+}
+function playAlbum(i){
+  albumIdx = i; saveMusic(); renderAlbums();
+  if (spCtl){ spCtl.loadUri(albumUri(i)); spCtl.play(); }
+}
+function buildAlbums(){
+  const list = $('albumList'); list.textContent = '';
+  ALBUMS.forEach((a, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'album'; b.setAttribute('role', 'option'); b.dataset.i = i;
+    const t = document.createElement('b'); t.textContent = a.name;
+    const s = document.createElement('small'); s.textContent = a.year + ' · ' + a.kind;
+    b.append(t, s);
+    b.addEventListener('click', () => { ensureAudio(); playAlbum(i); });
+    list.append(b);
+  });
+  $('albumCount').textContent = ALBUMS.length + ' discos';
+  albumsBuilt = true;
+}
+function renderAlbums(){
+  if (!albumsBuilt) return;
+  [...$('albumList').children].forEach((b, i) => b.setAttribute('aria-selected', i === albumIdx ? 'true' : 'false'));
+}
+function openMusic(){
+  if (!albumsBuilt) buildAlbums();
+  renderAlbums();
+  $('autoNext').checked = autoNext;
+  musicOpen = true;
+  musicEl.classList.remove('is-closed'); musicEl.setAttribute('aria-hidden', 'false');
+  $('musicBtn').setAttribute('aria-expanded', 'true');
+  loadSpotify();
+  try { $('albumList').children[albumIdx].focus({preventScroll: true}); } catch(e){}
+}
+function closeMusic(){
+  musicOpen = false;
+  musicEl.classList.add('is-closed'); musicEl.setAttribute('aria-hidden', 'true');
+  $('musicBtn').setAttribute('aria-expanded', 'false');
+  try { cv.focus({preventScroll: true}); } catch(e){}
+}
+
 /* ---------- entrada ---------- */
 const KEYS = {
   ArrowUp:[0,1], w:[0,1], W:[0,1],
@@ -3177,6 +3322,10 @@ const coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
 function bind(){
   window.addEventListener('keydown', e => {
     const k = e.key;
+    if (musicOpen){
+      if (k === 'Escape'){ e.preventDefault(); closeMusic(); }
+      return;
+    }
     if (!shopEl.hidden){
       if (k === 'Escape'){ e.preventDefault(); closeShop(); }
       return;
@@ -3226,7 +3375,7 @@ function bind(){
     if (!ptr || e.pointerId !== ptr.id) return;
     const dx = e.clientX - ptr.x, dy = e.clientY - ptr.y; ptr = null;
     ensureAudio();
-    if (!shopEl.hidden || state === 'dying') return;
+    if (!shopEl.hidden || musicOpen || state === 'dying') return;
     const tap = Math.hypot(dx, dy) < 24;
     if (state === 'over'){ if (tap && performance.now() - overShownAt > 500) restart(); return; }
     if (!$('start').hidden){ if (tap){ if (modeOpen(mode)) input(0, 1); else denyPlay(); } return; }
@@ -3255,6 +3404,10 @@ function bind(){
   $('fAction').addEventListener('click', () => { ensureAudio(); onFeatureAction(); });
   shopEl.addEventListener('click', e => { if (e.target === shopEl) closeShop(); });
   $('mute').addEventListener('click', e => { toggleMute(); e.currentTarget.blur(); });
+  $('musicBtn').addEventListener('click', () => { ensureAudio(); if (musicOpen) closeMusic(); else openMusic(); });
+  $('musicClose').addEventListener('click', closeMusic);
+  musicEl.addEventListener('click', e => { if (e.target === musicEl) closeMusic(); });
+  $('autoNext').addEventListener('change', e => { autoNext = e.target.checked; saveMusic(); });
   window.addEventListener('resize', resize);
 }
 
@@ -3299,7 +3452,7 @@ let last = 0;
 function loop(ts){
   const dt = Math.min(0.05, last ? (ts - last)/1000 : 0.016);
   last = ts;
-  update(dt);
+  if (!musicOpen) update(dt);   // el juego se queda en pausa mientras eliges música
   draw();
   if (!shopEl.hidden) drawPreview(dt);
   else if (!$('start').hidden) drawMenuChar();
