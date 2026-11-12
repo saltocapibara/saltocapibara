@@ -1930,6 +1930,151 @@ function sfx(name){
   } catch(e){}
 }
 
+/* ---------- ambiente de cada mapa y voz de cada personaje (todo sintetizado, sin archivos de audio) ---------- */
+// nota con forma: pts = [[0, f0], [t1, f1], ...]; el último tiempo es la duración
+function tone(dest, type, pts, vol, delay, vib, lp){
+  const t0 = actx.currentTime + (delay || 0), dur = pts[pts.length - 1][0];
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(pts[0][1], t0);
+  for (let i=1;i<pts.length;i++) o.frequency.exponentialRampToValueAtTime(pts[i][1], t0 + pts[i][0]);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + Math.min(0.03, dur*0.2));
+  g.gain.setValueAtTime(vol, t0 + dur*0.55); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  if (vib){ const l = actx.createOscillator(), lg = actx.createGain(); l.frequency.value = vib[0]; lg.gain.value = vib[1]; l.connect(lg); lg.connect(o.frequency); l.start(t0); l.stop(t0 + dur + 0.05); }
+  let out = o;
+  if (lp){ const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; o.connect(f); out = f; }
+  out.connect(g); g.connect(dest || actx.destination); o.start(t0); o.stop(t0 + dur + 0.05);
+}
+function nburst(dest, ftype, f0, f1, q, dur, vol, delay){
+  const t0 = actx.currentTime + (delay || 0);
+  const sr = actx.createBufferSource(); sr.buffer = noiseBuf;
+  const f = actx.createBiquadFilter(); f.type = ftype; f.Q.value = q; f.frequency.setValueAtTime(f0, t0); f.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+  const g = actx.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + dur*0.25); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  sr.connect(f); f.connect(g); g.connect(dest || actx.destination); sr.start(t0, Math.random()*0.5); sr.stop(t0 + dur + 0.05);
+}
+// sonidos de animales y cosas: k = volumen, r = tono (1 = normal)
+function vox(kind, dest, k, r){
+  k = k || 1; r = r || 1;
+  const T = (type, pts, vol, delay, vib, lp) => tone(dest, type, pts.map(q => [q[0], q[1]*r]), vol*k, delay, vib, lp);
+  switch(kind){
+    case 'squeak':  T('sine', [[0,1300],[0.07,1900]], 0.06); T('sine', [[0,1500],[0.08,2100]], 0.06, 0.11); break;
+    case 'squeakLow': T('triangle', [[0,700],[0.09,1000]], 0.07); T('triangle', [[0,650],[0.12,500]], 0.07, 0.13); break;
+    case 'quack':   T('sawtooth', [[0,620],[0.04,700],[0.13,420]], 0.06, 0, null, 1800); T('sawtooth', [[0,600],[0.04,680],[0.15,400]], 0.06, 0.19, null, 1800); break;
+    case 'ribbit':  T('square', [[0,170],[0.09,230]], 0.05, 0, [38,60], 900); T('square', [[0,190],[0.12,260]], 0.05, 0.16, [38,60], 900); break;
+    case 'meow':    T('triangle', [[0,650],[0.12,950],[0.4,560]], 0.07, 0, [6,15]); break;
+    case 'woof':    for (const d of [0, 0.2]){ T('sawtooth', [[0,340],[0.1,160]], 0.08, d, null, 1200); nburst(dest, 'lowpass', 900, 500, 0.7, 0.09, 0.07*k, d); } break;
+    case 'howl':    T('sine', [[0,380],[0.3,640],[0.8,600],[1.1,400]], 0.06, 0, [5,8]); break;
+    case 'roar':    T('sawtooth', [[0,150],[0.15,110],[0.6,70]], 0.1, 0, [28,18], 700); nburst(dest, 'lowpass', 600, 250, 0.7, 0.55, 0.08*k); break;
+    case 'moo':     T('sawtooth', [[0,130],[0.2,170],[0.75,125]], 0.09, 0, null, 600); break;
+    case 'oink':    T('square', [[0,300],[0.08,220]], 0.05, 0, [45,60], 1100); T('square', [[0,280],[0.1,200]], 0.05, 0.14, [45,60], 1100); break;
+    case 'baa':     T('sawtooth', [[0,430],[0.45,400]], 0.06, 0, [11,35], 1600); break;
+    case 'neigh':   T('triangle', [[0,900],[0.1,1500],[0.6,600]], 0.06, 0, [17,110]); break;
+    case 'trumpet': T('sawtooth', [[0,330],[0.12,640],[0.35,700],[0.55,480]], 0.07, 0, null, 2200); break;
+    case 'robot':   [880, 1320, 660, 1100].forEach((f, i) => T('square', [[0,f],[0.06,f]], 0.035, i*0.08)); break;
+    case 'hoot':    T('sine', [[0,400],[0.18,380]], 0.07); T('sine', [[0,400],[0.3,360]], 0.07, 0.3); break;
+    case 'cluck':   [0, 0.1, 0.2].forEach(d => T('square', [[0,900],[0.04,500]], 0.04, d, null, 2500)); T('square', [[0,700],[0.12,1100]], 0.04, 0.32, null, 2500); break;
+    case 'chirp':   [0, 0.09, 0.18].forEach(d => T('sine', [[0,2400],[0.05,3400]], 0.04, d)); break;
+    case 'monkey':  [0, 0.11, 0.22, 0.33].forEach((d, i) => T('sine', [[0,500 + i*60],[0.07,900 + i*80]], 0.05, d)); break;
+    case 'buzz':    T('sawtooth', [[0,210],[0.4,230]], 0.05, 0, [60,50], 1500); break;
+    case 'bubble':  [[0,350],[0.12,480],[0.2,620]].forEach(q => T('sine', [[0,q[1]],[0.07,q[1]*2.4]], 0.05, q[0])); break;
+    case 'whoosh':  nburst(dest, 'bandpass', 500, 3200, 1.2, 0.3, 0.14*k); break;
+    case 'sparkle': [1319, 1568, 2093, 2637].forEach((f, i) => T('sine', [[0,f],[0.14,f]], 0.04, i*0.06)); break;
+    case 'cricket': [0, 0.05, 0.1].forEach(d => T('sine', [[0,4200],[0.025,4200]], 0.025, d)); break;
+    case 'chime':   { const f = [1047,1175,1319,1568,1760,2093][Math.random()*6 | 0]; T('sine', [[0,f],[0.6,f]], 0.03); T('sine', [[0,f*2],[0.3,f*2]], 0.01); break; }
+    case 'horn':    T('sawtooth', [[0,300],[0.5,300]], 0.02, 0, null, 500); break;
+    case 'gull':    T('triangle', [[0,1400],[0.15,1100],[0.3,1300],[0.5,900]], 0.03); break;
+    case 'crackle': nburst(dest, 'highpass', 1800, 2500, 0.7, 0.05, 0.05*k); break;
+    case 'blip':    T('sine', [[0,900],[0.08,900]], 0.02); break;
+  }
+}
+const VOICES = [
+  [/^(pato)$/, 'quack'], [/^(rana|ajolote|salamandra)$/, 'ribbit'], [/^(gato|gatonegro)$/, 'meow'], [/^(perro|dalmata|zorro|coyote)$/, 'woof'], [/^(lobo)$/, 'howl'],
+  [/^(leon|tigre|jaguar|leopardo|oso|osopardo|yeti|dino|dragon|cocodrilo|rino)$/, 'roar'], [/^(vaca)$/, 'moo'], [/^(cerdo)$/, 'oink'],
+  [/^(oveja|cabra|llama|camello|ciervo|reno|jirafa)$/, 'baa'], [/^(caballo|cebra|burro|unicornio|pegaso)$/, 'neigh'], [/^(elefante)$/, 'trumpet'],
+  [/^(robot|zorrociber|marciano|astro|tardigrado)$/, 'robot'], [/^(buho)$/, 'hoot'], [/^(gallina|pavo)$/, 'cluck'],
+  [/^(pollito|loro|tucan|flamenco|pinguino|fenix|murcielago)$/, 'chirp'], [/^(mono|koala|canguro)$/, 'monkey'], [/^(abeja|mariquita)$/, 'buzz'],
+  [/^(pulpo|pezpayaso|cangrejo|tortuga|caracol|nutria|castor)$/, 'bubble'], [/^(ninja|heroina)$/, 'whoosh'], [/^(maga|oro|gominola|fiesta)$/, 'sparkle'],
+  [/^(pirata|vaquera|rapera|chef)$/, 'squeakLow']
+];
+const VOICE_R = {pollito:1.3, loro:0.8, tucan:0.7, flamenco:0.75, pinguino:0.6, fenix:0.9, murcielago:1.5, gatonegro:0.85, coyote:1.25, zorro:1.4, dalmata:0.9,
+  leon:0.9, tigre:1, jaguar:1.1, leopardo:1.15, oso:0.8, osopardo:0.75, yeti:0.65, dino:0.6, dragon:0.7, cocodrilo:0.85, rino:0.7,
+  cabra:1.15, llama:0.9, camello:0.7, ciervo:0.85, reno:0.8, jirafa:0.75, burro:0.6, cebra:1.1, unicornio:1.2, pegaso:1.1, koala:0.6, canguro:0.8,
+  mariquita:1.5, raton:1.4, hamster:1.25, conejo:1.15, ardilla:1.3, erizo:1.1, mapache:0.8, panda:0.6, pandarojo:0.9, mofeta:0.85, salamandra:1.2, ajolote:1.4};
+// la voz del personaje: suena al elegirlo y al empezar la partida
+function voice(id){
+  if (muted || !actx || actx.state !== 'running') return;
+  try {
+    let kind = 'squeak';
+    for (const v of VOICES) if (v[0].test(id)){ kind = v[1]; break; }
+    vox(kind, null, 1, VOICE_R[id] || 1);
+    if (id === 'unicornio' || id === 'pegaso' || id === 'fenix') vox('sparkle', null, 0.7);
+  } catch(e){}
+}
+// ambiente: una cama de ruido filtrado, a veces una nota grave de fondo, y sonidos sueltos al azar
+// n: [filtro, frecuencia, Q, volumen, vaivén por segundo, cuánto vaivén]; d: [onda, Hz, volumen, Hz de la segunda]; ev: [sonido, veces por segundo, tono]
+const AMB = {
+  humedal:  {n:['lowpass',700,0.5,0.05,0.25,0.4], ev:[['chirp',0.35],['frog',0.08]]},
+  noche:    {n:['lowpass',500,0.5,0.045,0.2,0.3], ev:[['cricket',1.6],['hoot',0.05],['frog',0.1]]},
+  espacio:  {d:['sine',82,0.022,85], n:['lowpass',200,0.5,0.03,0.07,0.5], ev:[['blip',0.12]]},
+  hielo:    {n:['bandpass',600,1.2,0.07,0.13,0.7], ev:[['chime',0.06]]},
+  ciudad:   {n:['lowpass',260,0.5,0.07,0.1,0.3], ev:[['horn',0.07]]},
+  desierto: {n:['bandpass',420,0.9,0.06,0.1,0.75], ev:[]},
+  pantano:  {n:['lowpass',450,0.5,0.05,0.2,0.3], ev:[['frog',0.5],['cricket',0.8],['bubble',0.15]]},
+  playa:    {n:['lowpass',900,0.4,0.08,0.11,0.9], ev:[['gull',0.07]]},
+  otono:    {n:['bandpass',800,0.8,0.045,0.16,0.7], ev:[['chirp',0.15]]},
+  volcan:   {d:['sawtooth',60,0.018,62.5], n:['lowpass',180,0.6,0.09,0.3,0.5], ev:[['crackle',0.7]]},
+  granja:   {n:['lowpass',600,0.5,0.045,0.2,0.3], ev:[['chirp',0.4],['cluck',0.07]]},
+  selva:    {n:['bandpass',2600,1.5,0.03,0.3,0.4], ev:[['chirp',0.9],['cricket',0.7],['monkey',0.05]]},
+  cerezos:  {n:['bandpass',900,0.8,0.035,0.14,0.6], ev:[['chirp',0.3],['chime',0.12]]},
+  oeste:    {n:['bandpass',380,1,0.065,0.09,0.8], ev:[['howl',0.025],['cricket',0.25]]},
+  caramelo: {n:['bandpass',1500,0.8,0.02,0.15,0.6], ev:[['chime',0.6]]},
+  arrecife: {n:['lowpass',320,0.6,0.07,0.15,0.5], ev:[['bubble',0.9]]},
+  halloween:{d:['sine',110,0.02,113.5], n:['bandpass',500,1.5,0.055,0.12,0.85], ev:[['hoot',0.08],['howl',0.03]]},
+  neon:     {d:['sawtooth',55,0.012,55.4], n:['highpass',3500,0.5,0.02,0.2,0.2], ev:[['blip',0.2],['horn',0.04]]},
+  marte:    {d:['sine',70,0.018,71.5], n:['bandpass',300,0.8,0.07,0.08,0.8], ev:[['blip',0.05]]},
+  cielo:    {n:['bandpass',700,0.7,0.05,0.1,0.8], ev:[['chime',0.25],['chirp',0.1]]}
+};
+let amb = null, ambId = '';
+function ambStop(){
+  const a = amb; amb = null; ambId = '';
+  if (!a) return;
+  try {
+    const t = actx.currentTime;
+    a.out.gain.cancelScheduledValues(t); a.out.gain.setValueAtTime(a.out.gain.value, t); a.out.gain.linearRampToValueAtTime(0, t + 0.6);
+    for (const n of a.src) n.stop(t + 0.7);
+    setTimeout(() => { try { a.out.disconnect(); } catch(e){} }, 900);
+  } catch(e){}
+}
+function ambStart(id){
+  const A = AMB[id] || AMB.humedal, t = actx.currentTime;
+  const out = actx.createGain(); out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(1, t + 1.2); out.connect(actx.destination);
+  const src = [];
+  if (A.n){
+    const sr = actx.createBufferSource(); sr.buffer = noiseBuf; sr.loop = true;
+    const f = actx.createBiquadFilter(); f.type = A.n[0]; f.frequency.value = A.n[1]; f.Q.value = A.n[2];
+    const g = actx.createGain(); g.gain.value = A.n[3];
+    const l = actx.createOscillator(), lg = actx.createGain(); l.frequency.value = A.n[4]; lg.gain.value = A.n[3]*A.n[5];
+    l.connect(lg); lg.connect(g.gain);
+    sr.connect(f); f.connect(g); g.connect(out); sr.start(t); l.start(t); src.push(sr, l);
+  }
+  if (A.d){
+    const g = actx.createGain(); g.gain.value = A.d[2]; g.connect(out);
+    for (const hz of [A.d[1], A.d[3]]){ const o = actx.createOscillator(); o.type = A.d[0]; o.frequency.value = hz; o.connect(g); o.start(t); src.push(o); }
+  }
+  amb = {out, src, ev: A.ev || []}; ambId = id;
+}
+function ambTick(dt){
+  if (!actx) return;
+  let want = '';
+  if (!muted && actx.state === 'running' && !paused && player && $('start').hidden) want = laneAt(player.row).th || 'humedal';
+  if (want !== ambId){
+    try { ambStop(); if (want) ambStart(want); } catch(e){ amb = null; ambId = want; }
+  }
+  if (!amb) return;
+  for (const e of amb.ev) if (Math.random() < e[1]*dt){
+    try { vox(e[0] === 'frog' ? 'ribbit' : e[0], amb.out, 0.5, 0.8 + Math.random()*0.5); } catch(err){}
+  }
+}
+
 /* ---------- guardado ---------- */
 let bests = {}, totalCoins = 0, owned = new Set(['capi']), sel = 'capi';
 let maps = new Set(['aventura','humedal']), mode = 'aventura', retos = new Set();
@@ -2425,6 +2570,7 @@ function input(dc, dr){
     state = 'play';
     $('start').hidden = true; $('hint').hidden = true;
     track('games', 1);
+    voice(sel);
   }
   tutInput(dc, dr);
   if (player.hopping){ player.queued = [dc, dr]; return; }
@@ -6156,9 +6302,9 @@ function onFeatureAction(){
   if (!owned.has(ch.id)){
     if (!charReqMet(ch) || totalCoins < ch.price) return;
     totalCoins -= ch.price; owned.add(ch.id); sel = ch.id; rndChar = false;
-    save(); sfx('unlock'); burstPreview();
+    save(); sfx('unlock'); burstPreview(); setTimeout(() => voice(ch.id), 450);
   } else {
-    sel = ch.id; rndChar = false; save(); sfx('tick');
+    sel = ch.id; rndChar = false; save(); sfx('tick'); voice(sel);
   }
   renderRoster(); renderFeature(); updateHud();
 }
@@ -6461,7 +6607,7 @@ function cycleChar(d){
   rndChar = false;
   const i = list.findIndex(ch => ch.id === sel);
   sel = list[mod(i + d, list.length)].id;
-  save(); sfx('tick'); renderMenuChar();
+  save(); sfx('tick'); voice(sel); renderMenuChar();
 }
 function buyMode(m){
   const price = m.unlock.price;
@@ -6809,6 +6955,7 @@ function loop(ts){
     if (hitStop > 0){ hitStop -= dt; sdt = dt*0.08; }
     update(sdt);
   }
+  ambTick(dt);
   syncPauseBtn();
   renderPwr();
   if (needSave && ts - lastSave > (state === 'play' ? 8000 : 1500)) save();

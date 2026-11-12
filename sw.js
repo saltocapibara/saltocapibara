@@ -1,6 +1,6 @@
 // Salto Capibara: guarda el juego para que funcione sin conexión.
 // Si cambias algún archivo, sube también este con un número de versión nuevo.
-const VERSION = 'salto-capibara-2.4.1';
+const VERSION = 'salto-capibara-2.5.0';
 const CORE = [
   './',
   './index.html',
