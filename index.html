@@ -2881,23 +2881,34 @@ function tutInput(dc, dr){
     tutTimer = setTimeout(() => { tut = -1; if (state !== 'ready') h.hidden = true; setHint(); }, 3200);
   }
 }
-// ---- marca de caída: enseña dónde caes si saltas ahora a un tronco (cuenta lo que se mueve durante el salto) ----
+// ---- marcas laterales en los troncos: al estar subido a uno, enseñan si un salto a cada lado cae en el tronco o en el agua ----
 function drawLandMark(){
   const p = player;
-  if (state !== 'play' && state !== 'ready') return;
-  if (p.hopping || p.dead) return;
-  const r = p.row + 1, l = laneAt(r);
+  if (state !== 'play' || p.hopping || p.dead || !p.onLog) return;
+  const l = laneAt(p.row);
   if (l.type !== 'river' || l.kind !== 'logs') return;
-  const d = l.dir*l.speed*HOP;
-  const o = l.objs.find(o => p.x >= o.x + d - 0.08 && p.x <= o.x + d + o.len + 0.08);
+  const o = l.objs.find(o => p.x >= o.x - 0.08 && p.x <= o.x + o.len + 0.08);
   if (!o) return;
-  // se pinta sobre el tronco tal como está ahora, en el punto en el que vas a caer
-  const x = sx(Math.max(o.x + 0.2, Math.min(o.x + o.len - 0.2, p.x - d))), y = rowToY(r), ga = ctx.globalAlpha, k = reduceMotion ? 1 : 0.9 + 0.1*Math.sin(time*7);
-  ctx.globalAlpha = ga*0.8;
-  ctx.lineWidth = Math.max(2, T*0.06);
-  ctx.strokeStyle = 'rgba(22,36,27,0.55)'; el(x, y + T*0.03, T*0.27*k, T*0.17*k); ctx.stroke();
-  ctx.strokeStyle = '#fff'; el(x, y, T*0.27*k, T*0.17*k); ctx.stroke();
-  ctx.globalAlpha = ga;
+  const y = rowToY(p.row), ga = ctx.globalAlpha, k = reduceMotion ? 1 : 0.92 + 0.08*Math.sin(time*7);
+  ctx.lineCap = 'round';
+  for (const dc of [-1, 1]){
+    const tx = p.x + dc;
+    if (tx < -0.35 || tx > COLS - 0.65) continue;   // ahí el juego no deja saltar
+    const x = sx(tx);
+    if (tx >= o.x - 0.08 && tx <= o.x + o.len + 0.08){
+      ctx.globalAlpha = ga*0.8; ctx.lineWidth = Math.max(2, T*0.06);
+      ctx.strokeStyle = 'rgba(22,36,27,0.55)'; el(x, y + T*0.03, T*0.2*k, T*0.13*k); ctx.stroke();
+      ctx.strokeStyle = '#fff'; el(x, y, T*0.2*k, T*0.13*k); ctx.stroke();
+    } else {
+      const r = T*0.13*k;
+      ctx.globalAlpha = ga*0.9;
+      for (const [w, c] of [[Math.max(4, T*0.13), 'rgba(22,36,27,0.6)'], [Math.max(2, T*0.07), '#ff5a4d']]){
+        ctx.lineWidth = w; ctx.strokeStyle = c;
+        ctx.beginPath(); ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r); ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r); ctx.stroke();
+      }
+    }
+  }
+  ctx.globalAlpha = ga; ctx.lineCap = 'butt';
 }
 // ---- pantallas de misiones y logros ----
 // miles con punto, como en español (1000, 10.000): sin toLocaleString, que la primera vez tarda en cargar el idioma
