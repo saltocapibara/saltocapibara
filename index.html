@@ -346,6 +346,9 @@ body:has(#start:not([hidden])) .hud > div:first-child{visibility:hidden}
 .goal-list.mini .goal{padding:5px 8px 6px;gap:3px;border-radius:10px}
 .goal-list.mini .goal-txt{font-size:12.5px}
 .goal-list.mini .bar{height:6px}
+.ac-txt{margin:0;font-size:15px;line-height:1.4}
+.ac-txt b{overflow-wrap:anywhere}
+.ac-state{margin:0;font-size:13px;font-weight:700;color:var(--ink-soft)}
 .rk-map{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px}
 .rk-map b{font-family:var(--font-display);font-weight:400;font-size:24px;line-height:1;text-align:center}
 .rk-list{list-style:none;margin:0;padding:0;display:grid;gap:5px;max-height:min(46vh,380px);overflow-y:auto;overscroll-behavior:contain}
@@ -450,6 +453,7 @@ body:has(#start:not([hidden])) .hud > div:first-child{visibility:hidden}
       <p id="startRecord" class="record">Mejor partida 0 carriles · 0 mandarinas</p>
       <div class="foot-links">
         <button id="installBtn" class="link-btn" type="button" hidden>Instalar</button>
+        <button id="acctBtn" class="link-btn" type="button" hidden>Guardar progreso</button>
         <a id="privacyLink" class="link-btn" href="privacidad.html">Privacidad</a>
       </div>
     </div>
@@ -528,6 +532,24 @@ body:has(#start:not([hidden])) .hud > div:first-child{visibility:hidden}
     </div>
     <div id="achList" class="ach-list" hidden></div>
     <button id="goalsClose" class="btn btn-alt" type="button">Volver</button>
+  </div>
+</div>
+
+<div id="acct" class="overlay modal" hidden>
+  <div class="panel shop" role="dialog" aria-modal="true" aria-labelledby="acctTitle">
+    <h2 id="acctTitle" class="shop-title">Tu cuenta</h2>
+    <div id="acOut">
+      <p class="ac-txt">Entra con tu cuenta de Google para guardar tus récords, mandarinas y personajes en la nube. Así no los pierdes si cambias de móvil o borras los datos, y puedes seguir la partida en otro dispositivo.</p>
+    </div>
+    <div id="acIn" hidden>
+      <p class="ac-txt">Has entrado como <b id="acMail"></b>.</p>
+      <p id="acState" class="ac-state"></p>
+    </div>
+    <button id="acLogin" class="btn" type="button">Entrar con Google</button>
+    <button id="acLogout" class="btn btn-alt" type="button" hidden>Cerrar sesión</button>
+    <button id="acClose" class="btn btn-alt" type="button">Volver</button>
+    <button id="acDelete" class="link-btn" type="button" hidden>Borrar mi cuenta y mis datos de la nube</button>
+    <p class="goal-note">Puedes jugar sin entrar: el progreso se queda en este dispositivo.</p>
   </div>
 </div>
 
@@ -1955,8 +1977,12 @@ function load(){
 function save(){
   try {
     needSave = false; lastSave = performance.now();
-    localStorage.setItem(KEY, JSON.stringify({best: bestAll(), bests, coins: totalCoins, muted, owned: [...owned], sel, maps: [...maps], mode, retos: [...retos], rnd: {map: rndMap, char: rndChar, offMaps: [...rndOffMaps], offChars: [...rndOffChars]}, stats, missions: missions.map(m => ({id: m.id, tier: m.tier, prog: m.prog})), missDone, achv: [...achv], daily}));
+    localStorage.setItem(KEY, JSON.stringify(snapshot()));
   } catch(e){}
+  cloudTouch();
+}
+function snapshot(){
+  return {best: bestAll(), bests, coins: totalCoins, muted, owned: [...owned], sel, maps: [...maps], mode, retos: [...retos], rnd: {map: rndMap, char: rndChar, offMaps: [...rndOffMaps], offChars: [...rndOffChars]}, stats, missions: missions.map(m => ({id: m.id, tier: m.tier, prog: m.prog})), missDone, achv: [...achv], daily};
 }
 
 /* ---------- regalo diario ---------- */
@@ -2999,8 +3025,143 @@ function rkSaveNick(){
   try { localStorage.setItem(NKEY, rkNick); localStorage.removeItem(SKEY); } catch(e){}
   delete $('rkForm').dataset.edit;
   rkRender();
+  cloudTouch();
   rkSubmitAll().then(() => { if (!$('rank').hidden) rkShow(rkMapId, true); });
 }
+// ---- cuenta y guardado en la nube (Supabase Auth con Google): opcional, solo en la web pública ----
+const AU_URL = RK_URL.replace('rest/v1/', 'auth/v1/'), AKEY = 'salto-capibara-auth', DKEY = 'salto-capibara-dirty';
+let au = null, cloudDirtyFlag = false, cloudTimer = 0, cloudBusy = false, cloudState = '', acDelArm = 0;
+let cloudReady = false;   // hasta que no se ha leído la nube en esta sesión no se sube nada, para no pisar lo que haya allí
+function jwtData(t){
+  try { return JSON.parse(decodeURIComponent(escape(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))))); } catch(e){ return null; }
+}
+function auStore(){ try { if (au) localStorage.setItem(AKEY, JSON.stringify(au)); else localStorage.removeItem(AKEY); } catch(e){} }
+function auSet(at, rt, expIn){
+  const d = jwtData(at);
+  if (!d || !d.sub) return false;
+  au = {at, rt, exp: Date.now() + (Math.max(60, +expIn || 3600))*1000, uid: d.sub, email: d.email || ''};
+  auStore(); return true;
+}
+function auInit(){
+  if (!RK_ON) return;
+  $('acctBtn').hidden = false;
+  try { cloudDirtyFlag = localStorage.getItem(DKEY) === '1'; } catch(e){}
+  let fresh = false;
+  // vuelta de Google: los datos de la sesión llegan en la dirección, detrás de la almohadilla
+  if (/access_token=|error=/.test(location.hash)){
+    const h = new URLSearchParams(location.hash.slice(1));
+    try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
+    if (h.get('access_token') && auSet(h.get('access_token'), h.get('refresh_token') || '', h.get('expires_in'))) fresh = true;
+    else setTimeout(() => toast('No se pudo entrar', 'Vuelve a intentarlo'), 900);
+  }
+  if (!au){
+    try { const o = JSON.parse(localStorage.getItem(AKEY) || 'null'); if (o && o.at && o.uid) au = o; } catch(e){}
+  }
+  auRender();
+  if (au){
+    if (fresh){ cloudDirtyFlag = cloudDirtyFlag || bestAll() > 0 || totalCoins > 0; stat('cuenta-entrar'); }
+    cloudPull(fresh);
+  }
+}
+function auToken(){
+  if (!au) return Promise.reject(new Error('sin sesión'));
+  if (au.exp - Date.now() > 90000) return Promise.resolve(au.at);
+  if (!au.rt) { auDrop(); return Promise.reject(new Error('caducada')); }
+  return fetch(AU_URL + 'token?grant_type=refresh_token', {method: 'POST', headers: {apikey: RK_KEY, 'Content-Type': 'application/json'}, body: JSON.stringify({refresh_token: au.rt})})
+    .then(r => { if (r.status === 400 || r.status === 401 || r.status === 403){ auDrop(); throw new Error('caducada'); } if (!r.ok) throw new Error('red'); return r.json(); })
+    .then(j => { if (!auSet(j.access_token, j.refresh_token || au.rt, j.expires_in)) throw new Error('token'); return au.at; });
+}
+function auDrop(){ au = null; cloudReady = false; auStore(); cloudState = ''; auRender(); }
+function auFetch(url, opts){
+  return auToken().then(t => {
+    opts = opts || {}; opts.headers = Object.assign({apikey: RK_KEY, Authorization: 'Bearer ' + t}, opts.headers || {});
+    return fetch(url, opts);
+  }).then(r => { if (!r.ok) throw new Error('nube ' + r.status); return r; });
+}
+function auRender(){
+  $('acctBtn').textContent = au ? 'Cuenta' : 'Guardar progreso';
+  $('acOut').hidden = !!au; $('acIn').hidden = !au;
+  $('acLogin').hidden = !!au; $('acLogout').hidden = !au; $('acDelete').hidden = !au;
+  $('acMail').textContent = au ? (au.email || 'tu cuenta de Google') : '';
+  $('acState').textContent = cloudState;
+  $('acDelete').textContent = acDelArm ? 'Pulsa otra vez para borrarlo todo de la nube' : 'Borrar mi cuenta y mis datos de la nube';
+}
+function cloudSay(t){ cloudState = t; if (!$('acct').hidden) auRender(); }
+function cloudMark(d){ cloudDirtyFlag = d; try { if (d) localStorage.setItem(DKEY, '1'); else localStorage.removeItem(DKEY); } catch(e){} }
+// cada guardado local programa una subida (agrupadas, para no enviar una por mandarina)
+function cloudTouch(){
+  if (!au) return;
+  cloudMark(true);
+  clearTimeout(cloudTimer); cloudTimer = setTimeout(() => cloudReady ? cloudPush() : cloudPull(), 4000);
+}
+function cloudPush(keep){
+  if (!au || cloudBusy || !cloudReady) return Promise.resolve(false);
+  clearTimeout(cloudTimer);
+  cloudBusy = true;
+  const data = snapshot(); delete data.muted;
+  data.rk = {nick: rkNick, pid: rkPid};
+  return auFetch(RK_URL + 'saves?on_conflict=user_id', {method: 'POST', keepalive: !!keep,
+    headers: {'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal'},
+    body: JSON.stringify({user_id: au.uid, data, updated_at: new Date().toISOString()})})
+    .then(() => { cloudMark(false); cloudSay('Progreso guardado en la nube.'); return true; })
+    .catch(() => { if (au) cloudSay('Sin conexión: se guardará en la nube cuando vuelva.'); return false; })
+    .then(v => { cloudBusy = false; return v; });
+}
+function cloudApply(d){
+  // en plena partida no se toca nada: se aplica al volver al menú o al terminar
+  if (state === 'play' || state === 'dying'){ setTimeout(() => cloudApply(d), 2500); return; }
+  const dirty = cloudDirtyFlag, c = Object.assign({}, d);
+  if (dirty){ delete c.sel; delete c.mode; delete c.rnd; delete c.missions; }
+  mergeSave(c);
+  if (!dirty && (c.coins | 0) >= 0) totalCoins = c.coins | 0;   // sin cambios pendientes aquí, manda la nube (por si se gastaron en otro dispositivo)
+  if (c.rk && !rkNick && typeof c.rk.nick === 'string' && rkCheckNick(c.rk.nick).ok){
+    rkNick = c.rk.nick;
+    if (/^[0-9a-f-]{36}$/.test(c.rk.pid || '')) rkPid = c.rk.pid;
+    try { localStorage.setItem(NKEY, rkNick); localStorage.setItem(PKEY, rkPid); } catch(e){}
+  }
+  checkUnlocks(); ensureMissions();
+  const wasAu = au; au = null; save(); au = wasAu;   // guardar en local sin programar otra subida
+  updateHud();
+  if (!$('start').hidden) renderMenu();
+  if (state === 'ready') reset();
+}
+function cloudPull(first){
+  if (!au) return;
+  cloudSay('Sincronizando…');
+  auFetch(RK_URL + 'saves?select=data,updated_at&user_id=eq.' + au.uid)
+    .then(r => r.json())
+    .then(rows => {
+      if (!Array.isArray(rows)) throw new Error('respuesta');
+      const row = rows[0];
+      cloudReady = true;
+      if (row && row.data && typeof row.data === 'object') cloudApply(row.data);
+      if (!row || cloudDirtyFlag) return cloudPush();
+      cloudSay('Progreso guardado en la nube.');
+    })
+    .then(() => { if (first) toast('Sesión iniciada', 'Tu progreso se guarda en la nube'); })
+    .catch(() => { if (au) cloudSay('Sin conexión: se sincronizará cuando vuelva.'); });
+}
+function auLogin(){
+  cloudSay('');
+  location.href = AU_URL + 'authorize?provider=google&redirect_to=' + encodeURIComponent(location.origin + location.pathname);
+}
+function auLogout(){
+  const t = au && au.at;
+  const done = () => { auDrop(); cloudMark(false); };
+  if (!t) return done();
+  cloudPush().then(() => fetch(AU_URL + 'logout?scope=local', {method: 'POST', headers: {apikey: RK_KEY, Authorization: 'Bearer ' + t}}).catch(() => {})).then(done);
+}
+function auDelete(){
+  if (!au) return;
+  if (!acDelArm){ acDelArm = 1; auRender(); setTimeout(() => { acDelArm = 0; auRender(); }, 5000); return; }
+  acDelArm = 0;
+  cloudSay('Borrando…');
+  auFetch(RK_URL + 'rpc/delete_my_account', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'})
+    .then(() => { auDrop(); cloudMark(false); toast('Cuenta borrada', 'Tu progreso sigue en este dispositivo'); closeAcct(); })
+    .catch(() => cloudSay('No se pudo borrar. Comprueba la conexión y vuelve a intentarlo.'));
+}
+function openAcct(){ if (!RK_ON) return; acDelArm = 0; auRender(); $('acct').hidden = false; sfx('tick'); try { $('acClose').focus({preventScroll:true}); } catch(e){} }
+function closeAcct(){ $('acct').hidden = true; }
 function openGoals(t){
   renderGoals(); goalsTab(t || 'mis');
   $('goals').hidden = false; sfx('tick');
@@ -6426,6 +6587,10 @@ function bind(){
       if (k === 'Escape'){ e.preventDefault(); closeRank(); }
       return;
     }
+    if (!$('acct').hidden){
+      if (k === 'Escape'){ e.preventDefault(); closeAcct(); }
+      return;
+    }
     if (paused){
       if (k === 'Escape' || k === 'p' || k === 'P'){ e.preventDefault(); resumeGame(); }
       return;
@@ -6477,7 +6642,7 @@ function bind(){
   // jugar rápido con los dos pulgares). El deslizamiento salta en cuanto el dedo recorre unos píxeles, sin
   // esperar a levantarlo, y mientras el dedo está apoyado el personaje se agacha para coger impulso.
   const ptrs = new Map();
-  const blocked = () => !shopEl.hidden || !$('rank').hidden || !$('goals').hidden || !$('pickChars').hidden || paused || state === 'dying';
+  const blocked = () => !shopEl.hidden || !$('rank').hidden || !$('acct').hidden || !$('goals').hidden || !$('pickChars').hidden || paused || state === 'dying';
   const inGame = () => $('start').hidden && (state === 'play' || state === 'ready');
   const SWIPE = Math.max(22, Math.min(40, Math.round(Math.min(window.innerWidth, window.innerHeight)*0.06)));
   const syncPress = () => { let n = 0; for (const q of ptrs.values()) if (!q.fired) n++; if (player) player.press = n > 0 && inGame() && !blocked(); };
@@ -6526,6 +6691,13 @@ function bind(){
   $('startShop').addEventListener('click', () => { ensureAudio(); openShop('start'); });
   $('startGoals').addEventListener('click', () => { ensureAudio(); openGoals('mis'); });
   $('goalsClose').addEventListener('click', () => closeGoals());
+  $('acctBtn').addEventListener('click', () => { ensureAudio(); openAcct(); });
+  $('acClose').addEventListener('click', () => closeAcct());
+  $('acLogin').addEventListener('click', () => auLogin());
+  $('acLogout').addEventListener('click', () => auLogout());
+  $('acDelete').addEventListener('click', () => auDelete());
+  $('acct').addEventListener('click', e => { if (e.target === $('acct')) closeAcct(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && au && cloudDirtyFlag) cloudPush(true); });
   $('startRank').addEventListener('click', () => { ensureAudio(); openRank(); });
   $('overRank').addEventListener('click', () => { ensureAudio(); openRank(); });
   $('rkClose').addEventListener('click', () => closeRank());
@@ -6656,6 +6828,7 @@ function start(data){
   registerSW();
   loadStats();
   rkLoad();
+  auInit();
   claimDaily();
   renderMenu();
   requestAnimationFrame(loop);
