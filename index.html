@@ -289,6 +289,7 @@ kbd{
 .icon-btn[disabled]{opacity:.45;cursor:default}
 .menu-actions{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr)}
 .menu-actions .btn-alt{font-size:18px;padding-inline:6px}
+.menu-actions #startRank{grid-column:1/-1}
 .btn-play{width:100%}
 /* con el menú abierto, el marcador de la partida no asoma por detrás */
 body:has(#start:not([hidden])) .hud > div:first-child{visibility:hidden}
@@ -345,6 +346,22 @@ body:has(#start:not([hidden])) .hud > div:first-child{visibility:hidden}
 .goal-list.mini .goal{padding:5px 8px 6px;gap:3px;border-radius:10px}
 .goal-list.mini .goal-txt{font-size:12.5px}
 .goal-list.mini .bar{height:6px}
+.rk-map{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px}
+.rk-map b{font-family:var(--font-display);font-weight:400;font-size:24px;line-height:1;text-align:center}
+.rk-list{list-style:none;margin:0;padding:0;display:grid;gap:5px;max-height:min(46vh,380px);overflow-y:auto;overscroll-behavior:contain}
+.rk-list li{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:8px;background:var(--paper);border:2px solid var(--ink);border-radius:10px;padding:6px 10px;font-weight:800;font-size:15px}
+.rk-list li.me{background:var(--mandarina);}
+.rk-list .rk-pos{font-family:var(--font-display);font-weight:400;font-size:18px;text-align:center}
+.rk-list .rk-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk-list .rk-sc{font-variant-numeric:tabular-nums}
+.rk-msg{margin:0;padding:18px 8px;text-align:center;font-weight:700;color:var(--ink-soft)}
+.rk-nick{display:grid;gap:8px;background:var(--paper);border:2px solid var(--ink);border-radius:12px;padding:10px}
+.rk-nick label{font-weight:800;font-size:14px}
+.rk-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
+.rk-nick input{font:inherit;font-weight:800;font-size:17px;padding:9px 10px;border:2.5px solid var(--ink);border-radius:10px;background:#fff;color:var(--ink);min-width:0;width:100%;box-sizing:border-box}
+.rk-nick input:focus-visible{outline:3px solid var(--mandarina-deep);outline-offset:2px}
+.rk-err{margin:0;font-size:13px;font-weight:700;color:#b3261e}
+.rk-me{margin:0;font-size:14px;font-weight:700;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;justify-content:space-between}
 .goal-note{margin:0;font-size:13px;line-height:1.35;color:var(--ink-soft)}
 .pu-help{display:grid;gap:6px;background:var(--paper);border:2px solid var(--ink);border-radius:12px;padding:8px 10px}
 .pu-help p{margin:0;display:flex;align-items:center;gap:8px;font-size:13px;line-height:1.3}
@@ -426,6 +443,7 @@ body:has(#start:not([hidden])) .hud > div:first-child{visibility:hidden}
       <button id="play" class="btn btn-play" type="button">Jugar</button>
       <button id="startShop" class="btn btn-alt" type="button">Tienda</button>
       <button id="startGoals" class="btn btn-alt" type="button">Retos</button>
+      <button id="startRank" class="btn btn-alt" type="button" hidden>Ranking</button>
     </div>
     <p id="ctrlHint" class="touch">En partida: <kbd>↑</kbd> avanzar, <kbd>←</kbd><kbd>→</kbd> lados, <kbd>↓</kbd> atrás y <kbd>Esc</kbd> pausa. En el menú, <kbd>←</kbd><kbd>→</kbd> cambian de mapa. Si te quedas quieto, la crecida te alcanza.</p>
     <div class="foot">
@@ -451,6 +469,7 @@ body:has(#start:not([hidden])) .hud > div:first-child{visibility:hidden}
       <button id="again" class="btn" type="button">Otra vez</button>
       <button id="overMenu" class="btn btn-alt" type="button">Menú</button>
     </div>
+    <button id="overRank" class="link-btn" type="button" hidden>Ver el ranking</button>
     <p id="againHint" class="small">o pulsa <kbd>↑</kbd> o Espacio</p>
   </div>
 </div>
@@ -509,6 +528,33 @@ body:has(#start:not([hidden])) .hud > div:first-child{visibility:hidden}
     </div>
     <div id="achList" class="ach-list" hidden></div>
     <button id="goalsClose" class="btn btn-alt" type="button">Volver</button>
+  </div>
+</div>
+
+<div id="rank" class="overlay modal" hidden>
+  <div class="panel shop" role="dialog" aria-modal="true" aria-labelledby="rankTitle">
+    <div class="shop-head">
+      <h2 id="rankTitle" class="shop-title">Ranking</h2>
+      <span class="sec-note">Los 50 mejores</span>
+    </div>
+    <div class="rk-map">
+      <button id="rkPrev" class="icon-btn" type="button" aria-label="Mapa anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <b id="rkMap" aria-live="polite">Humedal</b>
+      <button id="rkNext" class="icon-btn" type="button" aria-label="Mapa siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+    <ol id="rkList" class="rk-list" hidden></ol>
+    <p id="rkMsg" class="rk-msg">Cargando…</p>
+    <p id="rkMe" class="rk-me" hidden><span id="rkMeTxt"></span><button id="rkEdit" class="link-btn" type="button">Cambiar apodo</button></p>
+    <form id="rkForm" class="rk-nick" hidden>
+      <label for="rkNick">Pon un apodo para salir en el ranking</label>
+      <div class="rk-row">
+        <input id="rkNick" type="text" maxlength="12" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="De 3 a 12 letras">
+        <button class="btn btn-sm" type="submit">Guardar</button>
+      </div>
+      <p class="goal-note">No uses tu nombre real. El apodo y tus récords se verán en el ranking.</p>
+      <p id="rkErr" class="rk-err" hidden></p>
+    </form>
+    <button id="rkClose" class="btn btn-alt" type="button">Volver</button>
   </div>
 </div>
 
@@ -2543,7 +2589,6 @@ function stat(name){
 }
 const scoreBucket = n => n < 10 ? '000-009' : n < 25 ? '010-024' : n < 50 ? '025-049' : n < 100 ? '050-099' : n < 200 ? '100-199' : n < 400 ? '200-399' : '400+';
 function die(cause){
-  stat('partida-' + mode); stat('carriles-' + scoreBucket(maxRow)); stat('muerte-' + cause);
   if (state !== 'play') return;
   if (cause === 'car' || cause === 'truck' || cause === 'train'){
     if (pw.inv > 0) return;
@@ -2553,6 +2598,8 @@ function die(cause){
   } else vibrate(140);
   const p = player;
   state = 'dying'; dyingT = 0;
+  stat('partida-' + mode); stat('carriles-' + scoreBucket(maxRow)); stat('muerte-' + cause);
+  rkSubmit(mode, maxRow);
   p.fixedRow = visRow(); p.hopping = false; p.queued = null; p.onLog = null;
   p.dead = cause;
   p.deathTh = cause === 'flood' ? floodCur : laneAt(p.row).th;
@@ -2851,6 +2898,108 @@ function goalsTab(t){
   $('tabMis').setAttribute('aria-selected', String(t === 'mis'));
   $('tabAch').setAttribute('aria-selected', String(t === 'ach'));
   $('misPane').hidden = t !== 'mis'; $('achList').hidden = t !== 'ach';
+}
+// ---- ranking online (Supabase): apodo + mejor marca por mapa; solo en la web pública ----
+const RK_URL = 'https://mqjklkugzjutgttjjmhi.supabase.co/rest/v1/', RK_KEY = 'sb_publishable_ZU33Mz0Pr883o38qoEukEQ_ha1Ye8_u';
+const RK_ON = location.hostname === 'saltocapibara.github.io';
+const RK_MIN = 10, NKEY = 'salto-capibara-nick', PKEY = 'salto-capibara-pid', SKEY = 'salto-capibara-rk';
+let rkNick = '', rkPid = '', rkSent = {}, rkMapId = 'humedal', rkCache = {}, rkReq = 0;
+function rkLoad(){
+  try {
+    rkNick = localStorage.getItem(NKEY) || '';
+    rkPid = localStorage.getItem(PKEY) || '';
+    const o = JSON.parse(localStorage.getItem(SKEY) || '{}'); if (o && typeof o === 'object') rkSent = o;
+  } catch(e){}
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(rkPid)){
+    rkPid = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random()*16 | 0).toString(16));
+    try { localStorage.setItem(PKEY, rkPid); } catch(e){}
+  }
+  $('startRank').hidden = !RK_ON; $('overRank').hidden = !RK_ON;
+}
+function rkFetch(path, body){
+  const o = {headers: {apikey: RK_KEY}};
+  if (body){ o.method = 'POST'; o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); }
+  return fetch(RK_URL + path, o).then(r => { if (!r.ok) throw new Error('rk ' + r.status); return r; });
+}
+// envía la marca si mejora la que ya se envió desde este dispositivo
+function rkSubmit(map, score){
+  if (!RK_ON || !rkNick || !MODE_BY_ID[map]) return Promise.resolve(false);
+  score = Math.min(5000, score | 0);
+  if (score < RK_MIN || score <= (rkSent[map] | 0)) return Promise.resolve(false);
+  return rkFetch('rpc/submit_score', {p_player: rkPid, p_map: map, p_name: rkNick, p_score: score, p_ch: sel})
+    .then(() => { rkSent[map] = score; delete rkCache[map]; try { localStorage.setItem(SKEY, JSON.stringify(rkSent)); } catch(e){} return true; })
+    .catch(() => false);
+}
+function rkSubmitAll(){
+  let p = Promise.resolve();
+  for (const m of MODES) if (bestOf(m.id) >= RK_MIN) p = p.then(() => rkSubmit(m.id, bestOf(m.id)));
+  return p;
+}
+const RK_BAD = ['puta','puto','mierda','polla','cono','zorra','maric','nazi','hitler','nigg','negrat','fag','sex','porn','pene','verga','cabron','gilip','subnor','retras','viola','pedof','coca'];
+function rkCheckNick(v){
+  v = v.replace(/\s+/g, ' ').trim();
+  if (v.length < 3 || v.length > 12) return {err: 'El apodo tiene que tener entre 3 y 12 caracteres.'};
+  if (!/^[0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ _.\-]+$/.test(v)) return {err: 'Usa solo letras, números, espacios, puntos y guiones.'};
+  const flat = v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/[^a-z]/g, '');
+  if (RK_BAD.some(w => flat.includes(w))) return {err: 'Ese apodo no vale. Prueba con otro.'};
+  return {ok: v};
+}
+function rkRender(){
+  const m = MODE_BY_ID[rkMapId], list = $('rkList'), msg = $('rkMsg'), c = rkCache[rkMapId];
+  $('rkMap').textContent = m ? m.name : rkMapId;
+  const mine = bestOf(rkMapId);
+  $('rkForm').hidden = !!rkNick && !$('rkForm').dataset.edit;
+  $('rkMe').hidden = !rkNick || !$('rkForm').hidden;
+  $('rkMeTxt').textContent = 'Juegas como ' + rkNick + (mine ? ' · tu récord aquí: ' + mine : '');
+  list.textContent = '';
+  if (!c || c.state === 'load'){ list.hidden = true; msg.hidden = false; msg.textContent = 'Cargando…'; return; }
+  if (c.state === 'err'){ list.hidden = true; msg.hidden = false; msg.textContent = 'No se pudo cargar el ranking. Comprueba la conexión y vuelve a intentarlo.'; return; }
+  if (!c.rows.length){ list.hidden = true; msg.hidden = false; msg.textContent = 'Aún no hay nadie en este mapa. ¡Llega a ' + RK_MIN + ' carriles y sé el primero!'; return; }
+  msg.hidden = true; list.hidden = false;
+  let marked = false;
+  c.rows.forEach((r, i) => {
+    const li = document.createElement('li'), a = document.createElement('span'), b = document.createElement('span'), d = document.createElement('span');
+    a.className = 'rk-pos'; a.textContent = i + 1;
+    b.className = 'rk-name'; b.textContent = String(r.name);
+    d.className = 'rk-sc'; d.textContent = r.score | 0;
+    if (!marked && rkNick && r.name === rkNick && (r.score | 0) === (rkSent[rkMapId] | 0)){ li.className = 'me'; marked = true; }
+    li.append(a, b, d); list.append(li);
+  });
+}
+function rkShow(id, force){
+  rkMapId = id;
+  const c = rkCache[id];
+  if (!force && c && c.state === 'ok' && performance.now() - c.t < 30000){ rkRender(); return; }
+  rkCache[id] = {state: 'load'}; rkRender();
+  const my = ++rkReq;
+  rkFetch('ranking?select=name,score&map=eq.' + encodeURIComponent(id) + '&order=score.desc,updated_at.asc&limit=50')
+    .then(r => r.json())
+    .then(rows => { rkCache[id] = {state: 'ok', rows: Array.isArray(rows) ? rows : [], t: performance.now()}; })
+    .catch(() => { rkCache[id] = {state: 'err'}; })
+    .then(() => { if (my === rkReq && !$('rank').hidden) rkRender(); });
+}
+function rkStep(d){
+  const ids = MODES.map(m => m.id), i = ids.indexOf(rkMapId);
+  rkShow(ids[(i + d + ids.length) % ids.length]); sfx('tick');
+}
+function openRank(){
+  if (!RK_ON) return;
+  delete $('rkForm').dataset.edit; $('rkErr').hidden = true;
+  $('rank').hidden = false; sfx('tick');
+  rkShow(MODE_BY_ID[mode] ? mode : 'humedal', true);
+  try { (rkNick ? $('rkClose') : $('rkNick')).focus({preventScroll:true}); } catch(e){}
+}
+function closeRank(){ $('rank').hidden = true; }
+function rkSaveNick(){
+  const r = rkCheckNick($('rkNick').value), err = $('rkErr');
+  if (r.err){ err.textContent = r.err; err.hidden = false; return; }
+  err.hidden = true;
+  rkNick = r.ok; rkSent = {};
+  try { localStorage.setItem(NKEY, rkNick); localStorage.removeItem(SKEY); } catch(e){}
+  delete $('rkForm').dataset.edit;
+  rkRender();
+  rkSubmitAll().then(() => { if (!$('rank').hidden) rkShow(rkMapId, true); });
 }
 function openGoals(t){
   renderGoals(); goalsTab(t || 'mis');
@@ -6273,6 +6422,10 @@ function bind(){
       if (k === 'Escape'){ e.preventDefault(); closeGoals(); }
       return;
     }
+    if (!$('rank').hidden){
+      if (k === 'Escape'){ e.preventDefault(); closeRank(); }
+      return;
+    }
     if (paused){
       if (k === 'Escape' || k === 'p' || k === 'P'){ e.preventDefault(); resumeGame(); }
       return;
@@ -6324,7 +6477,7 @@ function bind(){
   // jugar rápido con los dos pulgares). El deslizamiento salta en cuanto el dedo recorre unos píxeles, sin
   // esperar a levantarlo, y mientras el dedo está apoyado el personaje se agacha para coger impulso.
   const ptrs = new Map();
-  const blocked = () => !shopEl.hidden || !$('goals').hidden || !$('pickChars').hidden || paused || state === 'dying';
+  const blocked = () => !shopEl.hidden || !$('rank').hidden || !$('goals').hidden || !$('pickChars').hidden || paused || state === 'dying';
   const inGame = () => $('start').hidden && (state === 'play' || state === 'ready');
   const SWIPE = Math.max(22, Math.min(40, Math.round(Math.min(window.innerWidth, window.innerHeight)*0.06)));
   const syncPress = () => { let n = 0; for (const q of ptrs.values()) if (!q.fired) n++; if (player) player.press = n > 0 && inGame() && !blocked(); };
@@ -6373,6 +6526,14 @@ function bind(){
   $('startShop').addEventListener('click', () => { ensureAudio(); openShop('start'); });
   $('startGoals').addEventListener('click', () => { ensureAudio(); openGoals('mis'); });
   $('goalsClose').addEventListener('click', () => closeGoals());
+  $('startRank').addEventListener('click', () => { ensureAudio(); openRank(); });
+  $('overRank').addEventListener('click', () => { ensureAudio(); openRank(); });
+  $('rkClose').addEventListener('click', () => closeRank());
+  $('rkPrev').addEventListener('click', () => rkStep(-1));
+  $('rkNext').addEventListener('click', () => rkStep(1));
+  $('rkEdit').addEventListener('click', () => { $('rkForm').dataset.edit = '1'; $('rkNick').value = rkNick; rkRender(); try { $('rkNick').focus(); } catch(e){} });
+  $('rkForm').addEventListener('submit', e => { e.preventDefault(); rkSaveNick(); });
+  $('rank').addEventListener('click', e => { if (e.target === $('rank')) closeRank(); });
   $('tabMis').addEventListener('click', () => goalsTab('mis'));
   $('tabAch').addEventListener('click', () => goalsTab('ach'));
   $('goals').addEventListener('click', e => { if (e.target === $('goals')) closeGoals(); });
@@ -6494,6 +6655,7 @@ function start(data){
   setupInstall();
   registerSW();
   loadStats();
+  rkLoad();
   claimDaily();
   renderMenu();
   requestAnimationFrame(loop);
