@@ -1800,7 +1800,6 @@ const CHARS = [
   {id:'rino', name:'Rinoceronte', price:1500, desc:'Los coches le esquivan a él.', fur:['#8f8e8c','#a3a2a0'], draw: drawRino},
   {id:'pavo', name:'Pavo real', price:1600, desc:'Abre la cola en cada récord.', fur:['#1f6fb0','#2f8f6a'], draw: drawPavo},
   {id:'robot', name:'Robot', price:1800, desc:'Calcula la ruta perfecta. Casi siempre.', fur:['#aab4c2','#7ef9ff'], draw: drawRobot},
-  {id:'fantasma', name:'Fantasma', price:2000, req:{rec:150}, desc:'Atraviesa paredes, pero no coches.', fur:['#ffffff','#9fb3d6'], draw: drawFantasma},
   {id:'yeti', name:'Yeti', price:2200, req:{map:'hielo', lanes:150}, desc:'Bajó de la montaña buscando mandarinas.', fur:['#f4f6fa','#9fb3d6'], draw: drawYeti},
   {id:'dino', name:'Dinosaurio', price:2500, req:{rec:300}, desc:'Sobrevivió al meteorito. Ahora a ver la carretera.', fur:['#5fae4a','#f2c94c'], draw: drawDino},
   {id:'unicornio', name:'Unicornio', price:3000, req:{rec:400}, desc:'Deja un rastro de purpurina por donde pasa.', fur:['#fbf8ff','#ff8fc8'], draw: drawUnicornio, trail:'spark'}
@@ -2334,7 +2333,8 @@ function reset(){
   prints = [];
   resetRun();
   pw = {iman:0, escudo:0, doble:0, inv:0};
-  rec = []; recT = 0; runT = 0; ghostPassed = false;
+  if (tut >= 0){ tut = 0; tutN = 0; }
+  setHint();
   lanes.clear(); genRow = -16; chunkLeft = 0; lastChunk = 'grass';
   cam = 0; shake = 0; dyingT = 0; maxRow = 0; runCoins = 0; prevBest = bestOf(mode);
   curZone = 0; runEvents = []; nextMilestone = MILESTONE; runBonus = 0;
@@ -2354,6 +2354,7 @@ function input(dc, dr){
     $('start').hidden = true; $('hint').hidden = true;
     track('games', 1);
   }
+  tutInput(dc, dr);
   if (player.hopping){ player.queued = [dc, dr]; return; }
   move(dc, dr);
 }
@@ -2528,7 +2529,21 @@ function furBurst(u, r){
   const pal = charOf(sel).fur || ['#a86a3c','#b97a49'];
   for (let i=0;i<18;i++) particles.push({u, r, vu:rand(-3,3), vr:rand(-1.2,1.2), z:0.2, vz:rand(1,4), g:9, life:0.8, max:0.8, color: pal[i%2], size:rand(0.04,0.08), sq:true});
 }
+// ---- estadísticas anónimas (GoatCounter, sin cookies): solo en la web pública ----
+const GC_SITE = 'saltocapibara', GC_ON = location.hostname === 'saltocapibara.github.io';
+function loadStats(){
+  if (!GC_ON) return;
+  const sc = document.createElement('script');
+  sc.async = true; sc.src = 'https://gc.zgo.at/count.js';
+  sc.dataset.goatcounter = 'https://' + GC_SITE + '.goatcounter.com/count';
+  document.head.append(sc);
+}
+function stat(name){
+  try { if (GC_ON && window.goatcounter && window.goatcounter.count) window.goatcounter.count({path: name, title: name, event: true}); } catch(e){}
+}
+const scoreBucket = n => n < 10 ? '000-009' : n < 25 ? '010-024' : n < 50 ? '025-049' : n < 100 ? '050-099' : n < 200 ? '100-199' : n < 400 ? '200-399' : '400+';
 function die(cause){
+  stat('partida-' + mode); stat('carriles-' + scoreBucket(maxRow)); stat('muerte-' + cause);
   if (state !== 'play') return;
   if (cause === 'car' || cause === 'truck' || cause === 'train'){
     if (pw.inv > 0) return;
@@ -2546,7 +2561,6 @@ function die(cause){
   else if (cause==='train'){ p.gone = true; sfx('crash'); furBurst(p.x, p.fixedRow); shake = 0.5; }
   else { sfx(th.drownSfx || 'splash'); splash(p.x, p.fixedRow, th.p); }
   if (maxRow > bestOf(mode)) bests[mode] = maxRow;
-  saveGhostIfBest();
   save(); updateHud();
 }
 function enterZone(z){
@@ -2693,11 +2707,6 @@ function passRows(a, b){
     rs.night = 1; track('nights', 1);
     toast('Se hace de noche', 'Los coches encienden los faros');
   }
-  const g = ghosts[mode];
-  if (!ghostPassed && g && g.row >= 10 && b > g.row){
-    ghostPassed = true; track('ghost', 1);
-    popText(player.x, b, '¡Adelantas a tu fantasma!', '#d6f0ff');
-  }
 }
 // ¡nuevo récord en plena partida! confeti, sonido y aviso
 function celebrateRecord(){
@@ -2775,20 +2784,47 @@ function renderPwr(){
   box.hidden = !parts.length;
   box.innerHTML = parts.map(([k, v]) => '<span class="pw" title="' + PWR[k].name + '"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-' + k + '"/></svg>' + v + '</span>').join('');
 }
-// ---- fantasma de la mejor partida ----
-const GKEY = 'salto-capibara-ghost', GH_DT = 0.1;
-let ghosts = {}, rec = [], recT = 0, runT = 0, ghostPassed = false;
-function loadGhosts(){
-  try {
-    const g = JSON.parse(localStorage.getItem(GKEY) || '{}');
-    if (g && typeof g === 'object') for (const k in g) if (MODE_BY_ID[k] && g[k] && Array.isArray(g[k].s)) ghosts[k] = {row: g[k].row|0, s: g[k].s};
-  } catch(e){}
+// ---- primeros pasos: se enseña a jugar jugando, solo hasta que se completa una vez ----
+const TKEY = 'salto-capibara-tut';
+let tut = 0, tutN = 0, tutTimer = 0;
+try { if (localStorage.getItem(TKEY)) tut = -1; } catch(e){}
+function setHint(){
+  const h = $('hint');
+  if (tut < 0){ h.textContent = 'Salta para empezar'; return; }
+  h.textContent = coarse ? 'Toca la pantalla para saltar' : 'Pulsa ↑ para saltar';
 }
-function saveGhostIfBest(){
-  const g = ghosts[mode];
-  if (maxRow < 5 || rec.length < 20 || (g && maxRow <= g.row)) return;
-  ghosts[mode] = {row: maxRow, s: rec.slice()};
-  try { localStorage.setItem(GKEY, JSON.stringify(ghosts)); } catch(e){}
+function tutInput(dc, dr){
+  if (tut < 0) return;
+  const h = $('hint');
+  if (tut === 0){
+    if (dr > 0) tutN++;
+    if (tutN === 1){ h.textContent = coarse ? 'Sigue tocando para avanzar' : 'Sigue con ↑ para avanzar'; h.hidden = false; }
+    if (tutN >= 4){ tut = 1; h.textContent = coarse ? 'Desliza a los lados para esquivar' : 'Usa ← → para esquivar'; h.hidden = false; }
+  } else if (tut === 1 && dc !== 0){
+    tut = 2; h.textContent = '¡Eso es! No te pares: la crecida te alcanza'; h.hidden = false;
+    try { localStorage.setItem(TKEY, '1'); } catch(e){}
+    stat('tutorial-completado');
+    clearTimeout(tutTimer);
+    tutTimer = setTimeout(() => { tut = -1; if (state !== 'ready') h.hidden = true; setHint(); }, 3200);
+  }
+}
+// ---- marca de caída: enseña dónde caes si saltas ahora a un tronco (cuenta lo que se mueve durante el salto) ----
+function drawLandMark(){
+  const p = player;
+  if (state !== 'play' && state !== 'ready') return;
+  if (p.hopping || p.dead) return;
+  const r = p.row + 1, l = laneAt(r);
+  if (l.type !== 'river' || l.kind !== 'logs') return;
+  const d = l.dir*l.speed*HOP;
+  const o = l.objs.find(o => p.x >= o.x + d - 0.08 && p.x <= o.x + d + o.len + 0.08);
+  if (!o) return;
+  // se pinta sobre el tronco tal como está ahora, en el punto en el que vas a caer
+  const x = sx(Math.max(o.x + 0.2, Math.min(o.x + o.len - 0.2, p.x - d))), y = rowToY(r), ga = ctx.globalAlpha, k = reduceMotion ? 1 : 0.9 + 0.1*Math.sin(time*7);
+  ctx.globalAlpha = ga*0.8;
+  ctx.lineWidth = Math.max(2, T*0.06);
+  ctx.strokeStyle = 'rgba(22,36,27,0.55)'; el(x, y + T*0.03, T*0.27*k, T*0.17*k); ctx.stroke();
+  ctx.strokeStyle = '#fff'; el(x, y, T*0.27*k, T*0.17*k); ctx.stroke();
+  ctx.globalAlpha = ga;
 }
 // ---- pantallas de misiones y logros ----
 // miles con punto, como en español (1000, 10.000): sin toLocaleString, que la primera vez tarda en cargar el idioma
@@ -2879,8 +2915,6 @@ function update(dt){
   if (p.land > 0) p.land = Math.max(0, p.land - dt/0.16);
   p.pressK += ((p.press && !p.hopping && !p.dead ? 1 : 0) - p.pressK)*Math.min(1, dt*30);
   if (state === 'play'){
-    runT += dt; recT += dt;
-    while (recT >= GH_DT){ recT -= GH_DT; if (rec.length < 12000) rec.push(Math.round(p.x*100), Math.round(visRow()*100)); }
     if (pw.inv > 0) pw.inv = Math.max(0, pw.inv - dt);
     if (pw.iman > 0) magnet(dt);
   }
@@ -3260,48 +3294,6 @@ function drawBubble(x, y){
   ctx.fillStyle = 'rgba(120,200,255,0.16)'; ci(x, y, r); ctx.fill();
   ctx.strokeStyle = 'rgba(150,215,255,0.9)'; ctx.lineWidth = Math.max(1.5, T*0.04); ci(x, y, r); ctx.stroke();
   ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.arc(x, y, r*0.78, -2.5, -1.7); ctx.stroke();
-}
-// ---- el fantasma ----
-let ghostSpr = null, ghostKey = '';
-function ghostSprite(){
-  const key = sel + '|' + T + '|' + DPR;
-  if (ghostSpr && ghostKey === key) return ghostSpr;
-  ghostKey = key;
-  const S = Math.ceil(T*1.5*DPR), c = document.createElement('canvas');
-  c.width = c.height = S;
-  const g = c.getContext('2d'), saved = ctx, savedP = P;
-  ctx = g;
-  try { g.setTransform(T*DPR, 0, 0, T*DPR, S/2, S/2); charOf(sel).draw(0); } catch(e){} finally { ctx = saved; P = savedP; }
-  g.setTransform(1, 0, 0, 1, 0, 0);
-  g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(214,240,255,0.8)'; g.fillRect(0, 0, S, S);
-  c.css = S/DPR;
-  return ghostSpr = c;
-}
-function drawGhost(){
-  if (state !== 'play' && state !== 'dying') return;
-  const g = ghosts[mode];
-  if (!g || g.row < 8 || g.s.length < 4) return;
-  const n = g.s.length/2, f = runT/GH_DT, i = Math.floor(f);
-  let gx, gr, fade = 1;
-  if (i >= n - 1){
-    gx = g.s[2*(n - 1)]/100; gr = g.s[2*(n - 1) + 1]/100;
-    fade = 1 - (f - (n - 1))/15;
-    if (fade <= 0) return;
-  } else {
-    const t = f - i;
-    gx = lerp(g.s[2*i], g.s[2*i + 2], t)/100; gr = lerp(g.s[2*i + 1], g.s[2*i + 3], t)/100;
-  }
-  const x = sx(gx), y = rowToY(gr);
-  if (y < -T*2 || y > H + T) return;
-  const spr = ghostSprite(), w = spr.css, ga = ctx.globalAlpha;
-  ctx.globalAlpha = 0.42*fade;
-  ctx.drawImage(spr, x - w/2, y - w/2 - T*0.06 - Math.abs(Math.sin(runT*7))*T*0.06, w, w);
-  ctx.globalAlpha = 0.75*fade;
-  ctx.font = '800 ' + Math.max(10, Math.round(T*0.2)) + 'px "Bricolage Grotesque", system-ui, sans-serif';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-  ctx.lineWidth = Math.max(2, T*0.06); ctx.strokeStyle = 'rgba(22,36,27,0.8)'; ctx.strokeText('récord', x, y - T*0.52);
-  ctx.fillStyle = '#e6f6ff'; ctx.fillText('récord', x, y - T*0.52);
-  ctx.textAlign = 'start'; ctx.globalAlpha = ga;
 }
 
 function drawGround(l, r, cMin, cMax){
@@ -5694,7 +5686,7 @@ function draw(){
     drawObjects(l, r, cMin, cMax);
     if (r === pr && !p.squash) drawPlayer();
   }
-  drawGhost();
+  drawLandMark();
   drawParticles();
   if (!p.gone) lights.push({x: sx(p.x), y: rowToY(visRow()) - T*0.1, r: T*3.4, a: 1});
   drawDayTint(rTop, rBot);
@@ -6103,7 +6095,7 @@ function toggleRandChar(){
 // Pausa: Esc o el botón de pausa congelan la partida
 let paused = false, pauseShown = null;
 const running = () => $('start').hidden && shopEl.hidden && (state === 'play' || state === 'ready');
-function keepRecord(){ if (state === 'play'){ saveGhostIfBest(); if (maxRow > bestOf(mode)) bests[mode] = maxRow; save(); } }
+function keepRecord(){ if (state === 'play'){ if (maxRow > bestOf(mode)) bests[mode] = maxRow; save(); } }
 function pauseGame(){
   if (paused || !running()) return;
   paused = true;
@@ -6488,7 +6480,7 @@ function start(data){
   mergeSave(data);
   checkUnlocks();
   ensureMissions();
-  loadGhosts();
+  try { localStorage.removeItem('salto-capibara-ghost'); } catch(e){}
   resize();
   initFx();
   reset();
@@ -6501,6 +6493,7 @@ function start(data){
   bind();
   setupInstall();
   registerSW();
+  loadStats();
   claimDaily();
   renderMenu();
   requestAnimationFrame(loop);
